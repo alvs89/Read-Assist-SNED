@@ -18,40 +18,40 @@ const DataContext = createContext<DataContextType | undefined>(undefined)
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [learners, setLearners] = useState<Learner[]>(() => {
-    const saved = localStorage.getItem('readassist_learners')
+    const saved = localStorage.getItem('readassist_learners_v2')
     return saved ? JSON.parse(saved) : initialLearners
   })
   
   const [assessments, setAssessments] = useState<Assessment[]>(() => {
-    const saved = localStorage.getItem('readassist_assessments')
+    const saved = localStorage.getItem('readassist_assessments_v2')
     return saved ? JSON.parse(saved) : mockAssessments
   })
   
   const [observations, setObservations] = useState<Observation[]>(() => {
-    const saved = localStorage.getItem('readassist_observations')
+    const saved = localStorage.getItem('readassist_observations_v2')
     return saved ? JSON.parse(saved) : mockObservations
   })
 
   // Start using localStorage for recommendations
   const [recommendations, setRecommendations] = useState<Recommendation[]>(() => {
-    const saved = localStorage.getItem('readassist_recommendations')
+    const saved = localStorage.getItem('readassist_recommendations_v2')
     return saved ? JSON.parse(saved) : mockRecommendations
   })
 
   useEffect(() => {
-    localStorage.setItem('readassist_learners', JSON.stringify(learners))
+    localStorage.setItem('readassist_learners_v2', JSON.stringify(learners))
   }, [learners])
 
   useEffect(() => {
-    localStorage.setItem('readassist_assessments', JSON.stringify(assessments))
+    localStorage.setItem('readassist_assessments_v2', JSON.stringify(assessments))
   }, [assessments])
 
   useEffect(() => {
-    localStorage.setItem('readassist_observations', JSON.stringify(observations))
+    localStorage.setItem('readassist_observations_v2', JSON.stringify(observations))
   }, [observations])
 
   useEffect(() => {
-    localStorage.setItem('readassist_recommendations', JSON.stringify(recommendations))
+    localStorage.setItem('readassist_recommendations_v2', JSON.stringify(recommendations))
   }, [recommendations])
 
   const addLearner = (learnerData: Omit<Learner, "id">) => {

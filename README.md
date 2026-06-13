@@ -1,20 +1,37 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# ReadAssist-SNED
 
-# Run and deploy your AI Studio app
+ReadAssist-SNED is an AI-assisted intervention platform designed to help Special Needs Education (SNED) teachers monitor reading comprehension, record behavioral observations, and generate explainable intervention plans for their learners.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/985ddca7-2890-433d-8a99-ca4fe838681d
+- **Learner Profiles:** Track individual learner progress, support needs, grade level, accommodations, and IEP Goals.
+- **Reading Comprehension Assessments:** Record literal and inferential comprehension scores, vocabulary usage, sequencing, and main idea recognition for objective analysis.
+- **Teacher Observations:** Document behavioral patterns and specific reading difficulties interactively.
+- **Explainable Recommendations:** Automatically generate data-driven reading strategies based on combined assessments and behavioral observations. 
+- **Progress Tracking:** Visualize learning trends through intuitive charts and simple metrics to gauge response to interventions over time.
 
-## Run Locally
+## Technologies
 
-**Prerequisites:**  Node.js
+- **React 18** and **Vite**
+- **Tailwind CSS** for elegant, mobile-responsive layouts
+- **Recharts** for intuitive data visualization
+- **Lucide React** for essential iconography
 
+## Setup & Running
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Install dependencies and start the local development server:
+
+```bash
+npm install
+npm run dev
+```
+
+## Structure
+
+- `src/pages`: Feature-based routing (Dashboard, Learners, Assessments, Observations, Recommendations, Progress).
+- `src/components`: Reusable UI elements (Cards, Buttons, Badges).
+- `src/contexts`: Persistent local state management spanning session activity.
+
+## Purpose
+
+Empowering special educators with actionable, data-backed insights to better guide their learners.
