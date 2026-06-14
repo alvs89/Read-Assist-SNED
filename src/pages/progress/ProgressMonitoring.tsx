@@ -12,6 +12,7 @@ export function ProgressMonitoring() {
   const { theme } = useTheme()
   const { learners, assessments, recommendations } = useData()
   const [selectedLearnerId, setSelectedLearnerId] = useState(learners[0]?.id || "")
+  const [showComparison, setShowComparison] = useState(false)
 
   const isDark = theme === "dark" || (theme === "system" && document.documentElement.classList.contains("dark"))
   const textColor = isDark ? "#e2e8f0" : "#64748b"
@@ -47,7 +48,9 @@ export function ProgressMonitoring() {
     });
   }, [learnerAssessments])
 
-  const currentStatus = (scoreDiff > 0 || (learnerAssessments.length === 1 && latestAssessment.totalScore > 15)) ? 'Improving' : 'Needs Review'
+  const currentStatus = latestAssessment
+    ? activeRecs[activeRecs.length - 1]?.progressStatus || (scoreDiff >= 5 ? "Improving" : scoreDiff <= -3 || latestAssessment.totalScore < 25 ? "Needs Modified Support" : "Stable")
+    : "Stable"
 
   return (
     <div className="space-y-6">
@@ -59,7 +62,10 @@ export function ProgressMonitoring() {
       <div className="flex gap-4 items-center">
         <select 
           value={selectedLearnerId}
-          onChange={(e) => setSelectedLearnerId(e.target.value)}
+          onChange={(e) => {
+            setSelectedLearnerId(e.target.value)
+            setShowComparison(false)
+          }}
           className="h-10 rounded-md border border-slate-300 dark:border-slate-700 px-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white min-w-[250px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
         >
            {learners.map(l => (
@@ -68,17 +74,46 @@ export function ProgressMonitoring() {
         </select>
         <Button 
           variant="outline" 
-          onClick={(e) => {
-            const btn = e.currentTarget;
-            const original = btn.innerHTML;
-            btn.innerHTML = "Opening comparison...";
-            setTimeout(() => btn.innerHTML = "Comparison report generated", 800);
-            setTimeout(() => btn.innerHTML = original, 2500);
-          }}
+          onClick={() => setShowComparison(prev => !prev)}
+          disabled={learnerAssessments.length < 2}
         >
-          Compare Sessions
+          {showComparison ? "Hide Comparison" : "Compare Sessions"}
         </Button>
       </div>
+
+      {showComparison && latestAssessment && previousAssessment && (
+        <Card className="border-blue-200 dark:border-blue-900/60">
+          <CardHeader>
+            <CardTitle>Session Comparison</CardTitle>
+            <CardDescription>
+              Comparing {format(new Date(previousAssessment.date), "MMM d, yyyy")} and {format(new Date(latestAssessment.date), "MMM d, yyyy")}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Previous Score</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">{previousAssessment.totalScore}/50</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Latest Score</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">{latestAssessment.totalScore}/50</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Score Change</p>
+              <p className={`mt-1 text-2xl font-bold ${scoreDiff >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                {scoreDiff >= 0 ? "+" : ""}{scoreDiff}
+              </p>
+            </div>
+            <div className="md:col-span-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              {scoreDiff >= 5
+                ? "Interpretation: the learner is showing meaningful improvement across sessions. The current intervention may continue with teacher monitoring."
+                : scoreDiff <= -3
+                  ? "Interpretation: performance declined. The teacher should review the intervention plan and consider modified support."
+                  : "Interpretation: progress is stable. Continue monitoring and adjust support if classroom observations suggest difficulty."}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-4 gap-4">
         <Card className="bg-blue-600 text-white border-blue-700">
@@ -86,7 +121,7 @@ export function ProgressMonitoring() {
             <p className="text-blue-100 text-sm">Target Status</p>
             <div className="flex items-end gap-2 mt-2">
               <span className="text-3xl font-bold">{currentStatus}</span>
-              {currentStatus === 'Improving' ? <TrendingUp className="mb-1 opacity-80" /> : <AlertTriangle className="mb-1 opacity-80" />}
+              {currentStatus === 'Improving' ? <TrendingUp className="mb-1 opacity-80" /> : currentStatus === "Needs Modified Support" ? <AlertTriangle className="mb-1 opacity-80" /> : <RefreshCw className="mb-1 opacity-80" />}
             </div>
           </CardContent>
         </Card>
@@ -111,6 +146,15 @@ export function ProgressMonitoring() {
             <p className="text-slate-500 dark:text-slate-400 text-sm">Active Strategies</p>
             <div className="text-xl font-bold text-slate-900 dark:text-slate-50 mt-2">{activeStrategiesCount}</div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Since {activeSince}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-slate-500 dark:text-slate-400 text-sm">Support Level</p>
+            <div className="text-lg font-bold text-slate-900 dark:text-slate-50 mt-2">
+              {activeRecs[activeRecs.length - 1]?.classifiedSupportLevel || learners.find(l => l.id === selectedLearnerId)?.supportNeeds || "Not classified"}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Based on latest reviewed data</p>
           </CardContent>
         </Card>
       </div>
@@ -146,4 +190,3 @@ export function ProgressMonitoring() {
     </div>
   )
 }
-

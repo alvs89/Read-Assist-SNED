@@ -1,4 +1,15 @@
 export type SupportLevel = "Low Support Need" | "Moderate Support Need" | "High Support Need";
+export type ProgressStatus = "Improving" | "Stable" | "Needs Modified Support";
+export type ReviewStatus = "Pending Review" | "Approved" | "Needs Revision";
+export type UserRole = "SNED Teacher" | "Reading Teacher" | "Reading Coordinator" | "School Administrator";
+
+export interface InterventionNote {
+  id: string;
+  date: string;
+  strategy: string;
+  outcome: string;
+  teacherReflection: string;
+}
 
 export interface Learner {
   id: string;
@@ -10,7 +21,8 @@ export interface Learner {
   supportNeeds: SupportLevel;
   accommodations: string[];
   iepGoals: string[];
-  status: "Improving" | "Stable" | "Needs Modified Support";
+  interventionHistory: InterventionNote[];
+  status: ProgressStatus;
 }
 
 export interface Assessment {
@@ -23,6 +35,9 @@ export interface Assessment {
   sequencingScore: number; // 0-10
   mainIdeaScore: number; // 0-10
   totalScore: number;
+  percentage: number;
+  lowestDomains: string[];
+  summary: string;
   notes: string;
 }
 
@@ -31,6 +46,8 @@ export interface Observation {
   learnerId: string;
   date: string;
   indicators: string[];
+  nlpTags: string[];
+  extractedEvidence: string[];
   narrative: string;
   teacherId: string;
 }
@@ -45,6 +62,20 @@ export interface Recommendation {
   recommendedStrategies: string[];
   contributingFactors: string[];
   evidence: string[];
+  nlpDifficultyTags: string[];
+  reasoningSteps: string[];
+  teacherReviewStatus: ReviewStatus;
+  teacherNotes: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  progressStatus: ProgressStatus;
   confidence: number;
   reviewedByTeacher: boolean;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  role: UserRole;
+  department: string;
 }

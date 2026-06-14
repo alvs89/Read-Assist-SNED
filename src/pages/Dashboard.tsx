@@ -5,8 +5,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useTheme } from "@/src/components/ThemeProvider"
 import { useData } from "@/src/contexts/DataContext"
 import { format } from "date-fns"
+import { useNavigate } from "react-router-dom"
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const { theme } = useTheme()
   const { learners, assessments, recommendations, observations } = useData()
   
@@ -18,7 +20,7 @@ export function Dashboard() {
   const totalLearners = learners.length;
   // Unique learners receiving interventions
   const activeInterventions = new Set(recommendations.map(r => r.learnerId)).size;
-  const needingReview = learners.filter(l => l.status === "Needs Modified Support").length;
+  const needingReview = recommendations.filter(r => r.teacherReviewStatus === "Pending Review").length;
   const improvingCount = learners.filter(l => l.status === "Improving").length;
   const improvingPercentage = totalLearners > 0 ? Math.round((improvingCount / totalLearners) * 100) : 0;
 
@@ -69,14 +71,25 @@ export function Dashboard() {
       });
     });
 
+    observations.forEach(o => {
+      const learner = learners.find(l => l.id === o.learnerId);
+      acts.push({
+        text: `Observation recorded for ${learner?.code || 'Unknown Learner'}`,
+        time: format(new Date(o.date), "MMM d, yyyy"),
+        dateObj: new Date(o.date),
+        icon: CheckCircle,
+        color: "text-green-500"
+      });
+    });
+
     return acts.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime()).slice(0, 6);
-  }, [assessments, recommendations, learners]);
+  }, [assessments, recommendations, observations, learners]);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Dashboard</h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Overview of learner reading comprehension interventions and progress.</p>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Teacher-centered view of assessments, observations, support classifications, and reviewed interventions.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -102,12 +115,12 @@ export function Dashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Needing Review</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
             <AlertCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">{needingReview}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Require modified support</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Recommendations awaiting teacher action</p>
           </CardContent>
         </Card>
         <Card>
@@ -118,6 +131,30 @@ export function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">{improvingPercentage}%</div>
             <p className="text-xs text-slate-500 dark:text-slate-400">Of total learners improving</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-blue-200 dark:border-blue-900/60">
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Record Assessment</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enter adapted reading scores across the five thesis domains.</p>
+            <button onClick={() => navigate("/assessments/new")} className="mt-3 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400">Start assessment</button>
+          </CardContent>
+        </Card>
+        <Card className="border-green-200 dark:border-green-900/60">
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Add Observation</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Capture reading behavior and difficulty indicators for NLP tagging.</p>
+            <button onClick={() => navigate("/observations/new")} className="mt-3 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400">Record observation</button>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-200 dark:border-amber-900/60">
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Review Recommendations</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Approve or revise advisory intervention plans before use.</p>
+            <button onClick={() => navigate("/recommendations")} className="mt-3 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400">Open review queue</button>
           </CardContent>
         </Card>
       </div>
@@ -171,14 +208,14 @@ export function Dashboard() {
       <h3 className="text-lg font-medium text-slate-900 dark:text-slate-50 mt-6">Recent Activities</h3>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {recentActivities.length > 0 ? recentActivities.map((act, i) => (
-          <Card key={i}>
-            <CardContent className="p-4 flex items-start gap-4">
-              <div className={`p-2 rounded-full bg-slate-50 dark:bg-slate-800 ${act.color}`}>
+          <Card key={i} className="h-full">
+            <CardContent className="flex min-h-[116px] items-center gap-4 p-5">
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-50 dark:bg-slate-800 ${act.color}`}>
                 <act.icon size={20} />
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{act.text}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{act.time}</p>
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
+                <p className="text-sm font-medium leading-snug text-slate-900 dark:text-slate-50">{act.text}</p>
+                <p className="mt-2 text-xs leading-none text-slate-500 dark:text-slate-400">{act.time}</p>
               </div>
             </CardContent>
           </Card>

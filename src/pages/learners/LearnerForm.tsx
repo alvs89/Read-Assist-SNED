@@ -40,9 +40,9 @@ export function LearnerForm() {
           gender: learner.gender,
           readingConcerns: learner.readingConcerns.join(", "),
           supportNeeds: learner.supportNeeds,
-          accommodations: learner.accommodations.join(", "),
-          iepGoals: learner.iepGoals.join("\n"),
-          status: learner.status
+      accommodations: learner.accommodations.join(", "),
+      iepGoals: learner.iepGoals.join("\n"),
+      status: learner.status
         })
       }
     }
@@ -86,6 +86,7 @@ export function LearnerForm() {
       supportNeeds: formData.supportNeeds,
       accommodations: formData.accommodations.split(",").map(s => s.trim()).filter(Boolean),
       iepGoals: formData.iepGoals.split("\n").map(s => s.trim()).filter(Boolean),
+      interventionHistory: isEdit && id ? learners.find(l => l.id === id)?.interventionHistory || [] : [],
       status: formData.status
     }
 

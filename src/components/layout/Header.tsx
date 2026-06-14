@@ -1,96 +1,191 @@
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { Bell, Search, UserCircle, Sun, Moon } from "lucide-react"
+import { Bell, ClipboardList, FileText, Moon, Search, Sun, UserRound } from "lucide-react"
 import { Input } from "@/src/components/ui/input"
+import { Badge } from "@/src/components/ui/badge"
 import { useTheme } from "../ThemeProvider"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "@/src/contexts/AuthContext"
+import { useData } from "@/src/contexts/DataContext"
 
 export function Header() {
   const { theme, setTheme } = useTheme()
+  const { user, logout } = useAuth()
+  const { learners, assessments, observations, recommendations } = useData()
   const navigate = useNavigate()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [query, setQuery] = useState("")
+  const [showSearch, setShowSearch] = useState(false)
+
+  const searchResults = useMemo(() => {
+    if (!query.trim()) return []
+    const term = query.toLowerCase()
+    const learnerResults = learners
+      .filter(l => `${l.code} ${l.gradeLevel} ${l.readingConcerns.join(" ")} ${l.supportNeeds}`.toLowerCase().includes(term))
+      .map(l => ({ label: l.code, detail: `${l.gradeLevel} - ${l.supportNeeds}`, icon: UserRound, path: `/learners/${l.id}` }))
+    const recommendationResults = recommendations
+      .filter(r => `${r.classifiedSupportLevel} ${r.recommendedStrategies.join(" ")} ${r.teacherReviewStatus}`.toLowerCase().includes(term))
+      .map(r => {
+        const learner = learners.find(l => l.id === r.learnerId)
+        return { label: `Recommendation for ${learner?.code || "learner"}`, detail: r.teacherReviewStatus, icon: FileText, path: `/recommendations/${r.id}` }
+      })
+    const assessmentResults = assessments
+      .filter(a => `${a.summary} ${a.lowestDomains.join(" ")}`.toLowerCase().includes(term))
+      .map(a => {
+        const learner = learners.find(l => l.id === a.learnerId)
+        return { label: `Assessment - ${learner?.code || "learner"}`, detail: `${a.totalScore}/50 score`, icon: ClipboardList, path: "/assessments" }
+      })
+    const observationResults = observations
+      .filter(o => `${o.narrative} ${o.nlpTags.join(" ")}`.toLowerCase().includes(term))
+      .map(o => {
+        const learner = learners.find(l => l.id === o.learnerId)
+        return { label: `Observation - ${learner?.code || "learner"}`, detail: o.nlpTags.slice(0, 2).join(", ") || "Teacher observation", icon: ClipboardList, path: "/observations" }
+      })
+
+    return [...learnerResults, ...recommendationResults, ...assessmentResults, ...observationResults].slice(0, 6)
+  }, [assessments, learners, observations, query, recommendations])
+
+  const notifications = useMemo(() => {
+    const pending = recommendations
+      .filter(r => r.teacherReviewStatus === "Pending Review")
+      .map(r => {
+        const learner = learners.find(l => l.id === r.learnerId)
+        return {
+          title: `${learner?.code || "Learner"} recommendation needs review`,
+          detail: r.classifiedSupportLevel,
+          path: `/recommendations/${r.id}`,
+        }
+      })
+    const modified = learners
+      .filter(l => l.status === "Needs Modified Support")
+      .map(l => ({
+        title: `${l.code} needs modified support`,
+        detail: "Review progress and intervention plan",
+        path: `/learners/${l.id}`,
+      }))
+    return [...pending, ...modified].slice(0, 6)
+  }, [learners, recommendations])
+
+  const openPath = (path: string) => {
+    navigate(path)
+    setShowSearch(false)
+    setShowNotifications(false)
+    setShowProfile(false)
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-6 transition-colors z-30 relative">
       <div className="flex items-center gap-4 flex-1">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full max-w-lg">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-slate-400" />
-          <Input 
-            type="search" 
-            placeholder="Search learners or reports..." 
-            className="pl-9 bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-50" 
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setShowSearch(true)
+            }}
+            onFocus={() => setShowSearch(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && searchResults[0]) openPath(searchResults[0].path)
+              if (e.key === "Escape") setShowSearch(false)
+            }}
+            placeholder="Search learners, domains, observations, or reports..."
+            className="pl-9 bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-50"
+            aria-label="Search ReadAssist-SNED records"
           />
+          {showSearch && query.trim() && (
+            <div className="absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900">
+              {searchResults.length > 0 ? searchResults.map((result, index) => (
+                <button
+                  key={`${result.path}-${index}`}
+                  onClick={() => openPath(result.path)}
+                  className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                >
+                  <result.icon className="mt-0.5 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-900 dark:text-slate-50">{result.label}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">{result.detail}</span>
+                  </span>
+                </button>
+              )) : (
+                <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">No matching records found.</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-4 relative">
         <button
           onClick={() => setTheme(theme === "dark" || (theme === "system" && document.documentElement.classList.contains("dark")) ? "light" : "dark")}
-          className="relative text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 focus:outline-none"
+          className="relative rounded-md p-2 text-slate-500 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:text-slate-400 dark:hover:text-slate-200"
+          aria-label="Toggle color theme"
         >
           <Sun className="h-5 w-5 hidden dark:block" />
           <Moon className="h-5 w-5 block dark:hidden" />
         </button>
-        
+
         <div className="relative">
-          <button 
-            className="relative text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" 
+          <button
+            className="relative rounded-md p-2 text-slate-500 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:text-slate-400 dark:hover:text-slate-200"
             onClick={() => { setShowNotifications(!showNotifications); setShowProfile(false); }}
+            aria-label="Open notifications"
           >
             <Bell size={20} />
-            <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950"></span>
+            {notifications.length > 0 && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950" />}
           </button>
-          
+
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-lg z-50 overflow-hidden">
-              <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <p className="font-medium text-sm text-slate-900 dark:text-slate-50">Notifications</p>
+            <div className="absolute right-0 mt-2 w-80 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900 z-50">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="font-medium text-sm text-slate-900 dark:text-slate-50">Review Queue</p>
+                {notifications.length > 0 && <Badge variant="warning">{notifications.length}</Badge>}
               </div>
-              <div className="p-4 text-sm text-center text-slate-500 dark:text-slate-400">
-                <p>No new notifications</p>
-              </div>
+              {notifications.length > 0 ? notifications.map((item, index) => (
+                <button
+                  key={`${item.path}-${index}`}
+                  onClick={() => openPath(item.path)}
+                  className="block w-full border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                >
+                  <span className="block text-sm font-medium text-slate-900 dark:text-slate-50">{item.title}</span>
+                  <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>
+                </button>
+              )) : (
+                <div className="p-4 text-sm text-center text-slate-500 dark:text-slate-400">
+                  <p>No pending teacher-review items.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
-        
+        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+
         <div className="relative">
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 px-2 py-1 rounded-md" 
+          <button
+            className="flex items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:hover:bg-slate-900"
             onClick={() => { setShowProfile(!showProfile); setShowNotifications(false); }}
           >
             <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
-              A
+              {user?.name.charAt(0).toUpperCase() || "T"}
             </div>
             <div className="hidden md:block text-sm">
-              <p className="font-medium text-slate-700 dark:text-slate-200 leading-none">Teacher Alvin</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">SNED Teacher</p>
+              <p className="font-medium text-slate-700 dark:text-slate-200 leading-none">{user?.name || "Teacher"}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{user?.role || "Educator"}</p>
             </div>
-          </div>
+          </button>
 
           {showProfile && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-lg z-50">
+            <div className="absolute right-0 mt-2 w-56 rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900 z-50">
+              <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{user?.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{user?.department}</p>
+              </div>
               <div className="py-1">
-                <button 
-                  onClick={() => {
-                    setShowProfile(false);
-                    navigate("/settings");
-                  }} 
-                  className="w-full text-left block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Settings
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowProfile(false);
-                    setShowLogoutConfirm(true);
-                  }} 
-                  className="w-full text-left block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Log Out
-                </button>
+                <button onClick={() => openPath("/settings")} className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Settings</button>
+                <button onClick={() => { setShowProfile(false); setShowLogoutConfirm(true); }} className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Log Out</button>
               </div>
             </div>
           )}
@@ -101,23 +196,10 @@ export function Header() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-xl p-6 shadow-xl border border-slate-200 dark:border-slate-800">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2 text-center">Confirm Log Out</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 text-center">Are you sure you want to log out of your session?</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 text-center">Are you sure you want to end this educator session?</p>
             <div className="flex gap-3 justify-center">
-              <button 
-                onClick={() => setShowLogoutConfirm(false)} 
-                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  setShowLogoutConfirm(false);
-                  navigate("/login");
-                }} 
-                className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                Log Out
-              </button>
+              <button onClick={() => setShowLogoutConfirm(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">Cancel</button>
+              <button onClick={() => { setShowLogoutConfirm(false); logout(); navigate("/login"); }} className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">Log Out</button>
             </div>
           </div>
         </div>,

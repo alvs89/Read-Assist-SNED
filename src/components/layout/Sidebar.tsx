@@ -2,17 +2,19 @@ import React, { useState } from "react"
 import { createPortal } from "react-dom"
 import { NavLink, useNavigate } from "react-router-dom"
 import { LayoutDashboard, Users, FileText, Eye, BrainCircuit, Lightbulb, LineChart, FileSpreadsheet, Settings, LogOut, ChevronLeft, ChevronRight } from "lucide-react"
+import { useAuth } from "@/src/contexts/AuthContext"
 
 export function Sidebar() {
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const navItems = [
     { to: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
     { to: "/learners", icon: <Users size={20} />, label: "Learners" },
-    { to: "/assessments/new", icon: <FileText size={20} />, label: "Assessments" },
-    { to: "/observations/new", icon: <Eye size={20} />, label: "Observations" },
+    { to: "/assessments", icon: <FileText size={20} />, label: "Assessments" },
+    { to: "/observations", icon: <Eye size={20} />, label: "Observations" },
     { to: "/recommendations", icon: <Lightbulb size={20} />, label: "Recommendations" },
     { to: "/progress", icon: <LineChart size={20} />, label: "Progress" },
     { to: "/reports", icon: <FileSpreadsheet size={20} />, label: "Reports" },
@@ -70,8 +72,8 @@ export function Sidebar() {
       <div className={`p-4 border-t border-slate-100 dark:border-slate-800 space-y-4`}>
         {!isCollapsed && (
           <div className="rounded-lg bg-blue-50 dark:bg-slate-900 p-4 border dark:border-slate-800 overflow-hidden">
-            <p className="text-xs text-blue-700 dark:text-blue-400 font-medium truncate">Teacher View</p>
-            <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-1 truncate">SNED Dept. Alpha</p>
+            <p className="text-xs text-blue-700 dark:text-blue-400 font-medium truncate">{user?.role || "Educator View"}</p>
+            <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-1 truncate">{user?.department || "ReadAssist-SNED"}</p>
           </div>
         )}
         <div className={`pt-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
@@ -103,6 +105,7 @@ export function Sidebar() {
               <button 
                 onClick={() => {
                   setShowLogoutConfirm(false);
+                  logout();
                   navigate("/login");
                 }} 
                 className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"

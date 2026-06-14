@@ -11,6 +11,8 @@ export function LearnerList() {
   const { learners } = useData()
   const [searchTerm, setSearchTerm] = useState("")
   const [filterLevel, setFilterLevel] = useState("All")
+  const [page, setPage] = useState(1)
+  const pageSize = 6
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -32,6 +34,9 @@ export function LearnerList() {
     if (filterLevel === "All") return matchesSearch
     return matchesSearch && l.supportNeeds.includes(filterLevel)
   })
+  const totalPages = Math.max(1, Math.ceil(filteredLearners.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pagedLearners = filteredLearners.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   return (
     <div className="space-y-6">
@@ -54,13 +59,19 @@ export function LearnerList() {
               placeholder="Search by Learner Code..." 
               className="pl-9" 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setPage(1)
+              }}
             />
           </div>
           <div className="flex items-center gap-2">
             <select 
               value={filterLevel}
-              onChange={(e) => setFilterLevel(e.target.value)}
+              onChange={(e) => {
+                setFilterLevel(e.target.value)
+                setPage(1)
+              }}
               className="h-10 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
               <option value="All">All Support Levels</option>
@@ -68,7 +79,7 @@ export function LearnerList() {
               <option value="Moderate">Moderate Support</option>
               <option value="Low">Low Support</option>
             </select>
-            <Button variant="outline" className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => {setSearchTerm(""); setFilterLevel("All")}}>
+            <Button variant="outline" className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => {setSearchTerm(""); setFilterLevel("All"); setPage(1)}}>
               <Filter size={16} />
               Reset
             </Button>
@@ -87,7 +98,7 @@ export function LearnerList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredLearners.length > 0 ? filteredLearners.map((learner) => (
+              {filteredLearners.length > 0 ? pagedLearners.map((learner) => (
                 <tr key={learner.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-50">{learner.code}</td>
                   <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{learner.gradeLevel}</td>
@@ -108,10 +119,10 @@ export function LearnerList() {
           </table>
         </div>
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-          Showing {filteredLearners.length} of {learners.length} learners
+          Showing {filteredLearners.length === 0 ? 0 : (safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filteredLearners.length)} of {filteredLearners.length} learners
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>Previous</Button>
-            <Button variant="outline" size="sm" disabled>Next</Button>
+            <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>Previous</Button>
+            <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}>Next</Button>
           </div>
         </div>
       </div>

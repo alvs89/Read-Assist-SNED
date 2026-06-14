@@ -1,12 +1,15 @@
 import React, { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Check, ChevronRight, Calculator, Save, CheckCircle2 } from "lucide-react"
+import { AlertCircle, Check, ChevronRight, Calculator, Save, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/src/components/ui/card"
 import { Button } from "@/src/components/ui/button"
 import { Input } from "@/src/components/ui/input"
 import { Label } from "@/src/components/ui/label"
+import { Textarea } from "@/src/components/ui/textarea"
+import { AssessmentSummaryPanel } from "@/src/components/AssessmentSummaryPanel"
 import { useData } from "@/src/contexts/DataContext"
+import { buildAssessmentSummary } from "@/src/lib/decisionSupport"
 
 export function AssessmentWizard() {
   const navigate = useNavigate()
@@ -20,9 +23,17 @@ export function AssessmentWizard() {
     sequencing: 0,
     mainIdea: 0
   })
+  const [notes, setNotes] = useState("")
   const [isSaved, setIsSaved] = useState(false)
 
-  const totalScore = Object.values(scores).reduce<number>((a, b) => a + (Number(b) || 0), 0)
+  const assessmentSummary = buildAssessmentSummary({
+    literalScore: Number(scores.literal) || 0,
+    inferentialScore: Number(scores.inferential) || 0,
+    vocabularyScore: Number(scores.vocabulary) || 0,
+    sequencingScore: Number(scores.sequencing) || 0,
+    mainIdeaScore: Number(scores.mainIdea) || 0,
+  })
+  const totalScore = assessmentSummary.totalScore
 
   const handleNext = () => setStep(step + 1)
   const handlePrev = () => setStep(step - 1)
@@ -52,18 +63,18 @@ export function AssessmentWizard() {
   const handleSave = () => {
     addAssessment({
       learnerId: selectedLearner,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: new Date().toISOString(),
       literalScore: Number(scores.literal) || 0,
       inferentialScore: Number(scores.inferential) || 0,
       vocabularyScore: Number(scores.vocabulary) || 0,
       sequencingScore: Number(scores.sequencing) || 0,
       mainIdeaScore: Number(scores.mainIdea) || 0,
       totalScore,
-      notes: ""
+      notes
     })
     setIsSaved(true)
     setTimeout(() => {
-      navigate("/learners")
+      navigate("/assessments")
     }, 1500)
   }
 
@@ -71,7 +82,7 @@ export function AssessmentWizard() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Adapted Reading Assessment</h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Record comprehension scores to update learner profiles.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Record adapted comprehension scores for teacher-reviewed decision support.</p>
       </div>
 
       <div className="flex items-center justify-between mb-8 relative">
@@ -138,12 +149,22 @@ export function AssessmentWizard() {
                       type="number" 
                       min="0" max="10" 
                       value={scores[field.id as keyof typeof scores] || ""}
-                      onChange={(e) => setScores({...scores, [field.id]: e.target.value})}
+                      onChange={(e) => setScores({...scores, [field.id]: Math.min(10, Math.max(0, Number(e.target.value) || 0))})}
                       onKeyDown={handleNumberInputKeyDown}
                       onPaste={handleNumberInputPaste}
                     />
                   </div>
                 ))}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Assessment Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Optional notes about task conditions, prompts, accommodations used, or reading behavior during the session."
+                  className="min-h-[110px]"
+                />
               </div>
             </CardContent>
             <CardFooter className="justify-between">
@@ -165,6 +186,7 @@ export function AssessmentWizard() {
               <div className="bg-blue-50/50 dark:bg-blue-900/20 rounded-xl p-6 flex flex-col items-center justify-center border border-blue-100 dark:border-blue-800">
                 <p className="text-sm font-medium text-blue-800 dark:text-blue-400 mb-1">Total Adapted Score</p>
                 <div className="text-4xl font-bold text-blue-900 dark:text-blue-50">{totalScore} <span className="text-lg text-blue-600/70 dark:text-blue-400/70">/ 50</span></div>
+                <p className="text-sm text-blue-800 dark:text-blue-200 mt-2">{assessmentSummary.percentage}% overall performance</p>
               </div>
               
               <div className="space-y-3">
@@ -176,6 +198,18 @@ export function AssessmentWizard() {
                   <div className="flex justify-between text-slate-600 dark:text-slate-400"><span>Sequencing:</span> <span className="font-medium text-slate-900 dark:text-slate-50">{scores.sequencing}/10</span></div>
                   <div className="flex justify-between text-slate-600 dark:text-slate-400"><span>Main Idea:</span> <span className="font-medium text-slate-900 dark:text-slate-50">{scores.mainIdea}/10</span></div>
                 </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <AlertCircle size={16} className="text-blue-600 dark:text-blue-400" />
+                  Decision-support summary
+                </div>
+                <AssessmentSummaryPanel
+                  summary={assessmentSummary.summary}
+                  totalScore={assessmentSummary.totalScore}
+                  percentage={assessmentSummary.percentage}
+                  lowestDomains={assessmentSummary.lowestDomains}
+                />
               </div>
             </CardContent>
             <CardFooter className="justify-between pt-6 border-t border-slate-100 dark:border-slate-800">

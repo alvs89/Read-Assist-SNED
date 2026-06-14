@@ -6,6 +6,17 @@ import { Button } from "@/src/components/ui/button"
 import { Textarea } from "@/src/components/ui/textarea"
 import { Label } from "@/src/components/ui/label"
 import { useData } from "@/src/contexts/DataContext"
+import { analyzeObservation } from "@/src/lib/decisionSupport"
+
+const indicatorOptions = [
+  { id: "i1", label: "Difficulty Identifying Details" },
+  { id: "i2", label: "Difficulty Understanding Vocabulary" },
+  { id: "i3", label: "Difficulty Determining Main Idea" },
+  { id: "i4", label: "Difficulty Sequencing Events" },
+  { id: "i5", label: "Difficulty Answering Inferential Questions" },
+  { id: "i6", label: "Requires Frequent Prompts" },
+  { id: "i7", label: "Attention During Reading" }
+]
 
 export function ObservationForm() {
   const navigate = useNavigate()
@@ -16,6 +27,8 @@ export function ObservationForm() {
   const [indicators, setIndicators] = useState<Record<string, boolean>>({
     i1: false, i2: false, i3: false, i4: false
   })
+  const selectedIndicators = indicatorOptions.filter(option => indicators[option.id]).map(option => option.label)
+  const nlpPreview = analyzeObservation(selectedIndicators, narrative)
 
   const toggleIndicator = (id: string) => {
     setIndicators(prev => ({ ...prev, [id]: !prev[id] }))
@@ -25,13 +38,13 @@ export function ObservationForm() {
     addObservation({
       learnerId: selectedLearner,
       date: new Date().toISOString(),
-      indicators: Object.keys(indicators).filter(k => indicators[k]),
+      indicators: selectedIndicators,
       narrative,
       teacherId: "teacher-alvin"
     })
     setIsSaved(true)
     setTimeout(() => {
-      navigate("/learners")
+      navigate("/observations")
     }, 1500)
   }
 
@@ -39,7 +52,7 @@ export function ObservationForm() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Teacher Observation</h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Record qualitative reading behaviors to aid AI classification.</p>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Record qualitative reading behaviors for lightweight NLP difficulty analysis.</p>
       </div>
 
       <Card>
@@ -69,14 +82,7 @@ export function ObservationForm() {
                 <span className="text-xs text-slate-500 dark:text-slate-400">Select all that apply</span>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
-                {[
-                  { id: "i1", label: "Difficulty Identifying Details" },
-                  { id: "i2", label: "Difficulty Understanding Vocabulary" },
-                  { id: "i3", label: "Difficulty Determining Main Idea" },
-                  { id: "i4", label: "Difficulty Sequencing Events" },
-                  { id: "i5", label: "Difficulty Answering Inferential Questions" },
-                  { id: "i6", label: "Requires Frequent Prompts" }
-                ].map(indicator => (
+                {indicatorOptions.map(indicator => (
                   <label key={indicator.id} className="flex items-start gap-3 p-3 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
                     <input 
                       type="checkbox" 
@@ -107,13 +113,27 @@ export function ObservationForm() {
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 flex items-start gap-3 text-sm text-blue-800 dark:text-blue-200">
               <AlertCircle size={16} className="mt-0.5 shrink-0" />
               <p>
-                <strong>Important:</strong> These observations will be processed by the Natural Language Processing module to extract difficulty tags for the decision-support system.
+                <strong>Important:</strong> These observations are used for educational decision support only. The system does not diagnose disabilities or replace teacher judgment.
               </p>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">NLP Difficulty Preview</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {nlpPreview.nlpTags.map(tag => (
+                  <span key={tag} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                    {tag}
+                  </span>
+                ))}
+                {nlpPreview.nlpTags.length === 0 && (
+                  <span className="text-sm text-slate-500 dark:text-slate-400">No tags extracted yet.</span>
+                )}
+              </div>
             </div>
           </CardContent>
           <CardFooter className="justify-end border-t border-slate-100 dark:border-slate-800 pt-6">
-            <Button variant="outline" className="mr-3" type="button" onClick={() => navigate("/dashboard")} disabled={isSaved}>Cancel</Button>
-            <Button type="button" onClick={handleSave} disabled={isSaved || !selectedLearner} className={isSaved ? "bg-green-600 hover:bg-green-700 text-white" : ""}>
+            <Button variant="outline" className="mr-3" type="button" onClick={() => navigate("/observations")} disabled={isSaved}>Cancel</Button>
+            <Button type="button" onClick={handleSave} disabled={isSaved || !selectedLearner || (!narrative.trim() && selectedIndicators.length === 0)} className={isSaved ? "bg-green-600 hover:bg-green-700 text-white" : ""}>
               {isSaved ? <><CheckCircle2 size={16} className="mr-2" /> Saved!</> : <><Save size={16} className="mr-2" /> Submit Observation</>}
             </Button>
           </CardFooter>

@@ -1,56 +1,547 @@
-import React from "react"
-import { FileDown, Printer, FileText } from "lucide-react"
+import React, { useMemo, useState } from "react"
+import { FileDown, Printer, FileText, ShieldCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/src/components/ui/card"
 import { Button } from "@/src/components/ui/button"
 import { Badge } from "@/src/components/ui/badge"
+import { AssessmentSummaryPanel } from "@/src/components/AssessmentSummaryPanel"
+import { useData } from "@/src/contexts/DataContext"
+import { format } from "date-fns"
+
+type ReportType = "Learner Summary" | "Recommendation" | "Progress" | "Intervention History"
+
+const reportTypes: ReportType[] = ["Learner Summary", "Recommendation", "Progress", "Intervention History"]
 
 export function Reports() {
+  const { learners, assessments, observations, recommendations } = useData()
+  const [selectedLearnerId, setSelectedLearnerId] = useState(learners[0]?.id || "")
+  const [reportType, setReportType] = useState<ReportType>("Learner Summary")
+  const [exportStatus, setExportStatus] = useState("")
+
+  const learner = learners.find(l => l.id === selectedLearnerId) || learners[0]
+  const learnerAssessments = useMemo(() => assessments.filter(a => a.learnerId === learner?.id), [assessments, learner?.id])
+  const learnerObservations = useMemo(() => observations.filter(o => o.learnerId === learner?.id), [observations, learner?.id])
+  const learnerRecommendations = useMemo(() => recommendations.filter(r => r.learnerId === learner?.id), [recommendations, learner?.id])
+  const latestAssessment = [...learnerAssessments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+  const latestRecommendation = [...learnerRecommendations].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+
+  const handleGeneratePdf = () => {
+    const report = buildPdfReport({
+      reportType,
+      learner,
+      learnerAssessments,
+      learnerObservations,
+      learnerRecommendations,
+      latestAssessment,
+      latestRecommendation,
+    })
+    const blob = createProfessionalPdf(report)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = report.filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    setExportStatus(`Generated ${report.filename}`)
+    setTimeout(() => setExportStatus(""), 3000)
+  }
+
+  if (!learner) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Reports</h2>
+        <Card><CardContent className="p-8 text-center text-slate-500">Add a learner before generating reports.</CardContent></Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Reports Generation</h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Generate official documentation for SNED processes.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Reports</h2>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Generate printable thesis-aligned summaries for teacher review and documentation.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {[
-          { title: "Learner Summary Report", desc: "Comprehensive view of learner profile, accommodations, and IEP goals.", type: "General" },
-          { title: "Assessment Report", desc: "Detailed breakdown of adapted reading comprehension scores.", type: "Analytics" },
-          { title: "Recommendation Report", desc: "Explainable AI output including factors, evidence, and strategies.", type: "Intervention" },
-          { title: "Progress Monitoring Report", desc: "Trend analysis across multiple intervention sessions.", type: "Analytics" },
-        ].map(report => (
-          <Card key={report.title} className="hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
-             <CardHeader className="pb-3 border-b border-slate-50 dark:border-slate-800/50">
-                <div className="flex justify-between items-start">
-                  <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400 mb-3">
-                    <FileText size={20} />
-                  </div>
-                  <Badge variant="outline">{report.type}</Badge>
+      <Card className="print:hidden">
+        <CardContent className="grid gap-4 p-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <label htmlFor="learner" className="text-sm font-medium text-slate-700 dark:text-slate-300">Learner</label>
+            <select
+              id="learner"
+              value={selectedLearnerId}
+              onChange={(e) => setSelectedLearnerId(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            >
+              {learners.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="reportType" className="text-sm font-medium text-slate-700 dark:text-slate-300">Report Type</label>
+            <select
+              id="reportType"
+              value={reportType}
+              onChange={(e) => setReportType(e.target.value as ReportType)}
+              className="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            >
+              {reportTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
+          <div className="flex items-end gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => window.print()}>
+              <Printer size={14} className="mr-2" /> Print
+            </Button>
+            <Button className="flex-1" onClick={handleGeneratePdf}>
+              <FileDown size={14} className="mr-2" /> Generate PDF
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {exportStatus && (
+        <div className="print:hidden rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200">
+          {exportStatus}
+        </div>
+      )}
+
+      <Card className="print:shadow-none print:border-none">
+        <CardHeader className="border-b border-slate-100 dark:border-slate-800">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <FileText size={20} />
+                <span className="text-sm font-semibold">ReadAssist-SNED</span>
+              </div>
+              <CardTitle className="text-2xl text-slate-900 dark:text-slate-50">{reportType} Report</CardTitle>
+              <CardDescription>Generated {format(new Date(), "MMM d, yyyy")} for learner code {learner.code}</CardDescription>
+            </div>
+            <Badge variant="outline" className="flex items-center gap-1">
+              <ShieldCheck size={12} /> Teacher-reviewed document
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 p-6">
+          <section className="grid gap-4 md:grid-cols-3">
+            <SummaryItem label="Grade Level" value={learner.gradeLevel} />
+            <SummaryItem label="Support Need" value={latestRecommendation?.classifiedSupportLevel || learner.supportNeeds} />
+            <SummaryItem label="Progress Status" value={latestRecommendation?.progressStatus || learner.status} />
+          </section>
+
+          <section>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Educational Profile</h3>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <ListBlock title="Reading Concerns" items={learner.readingConcerns} />
+              <ListBlock title="Accommodations" items={learner.accommodations} />
+              <ListBlock title="IEP-Aligned Goals" items={learner.iepGoals} />
+              <ListBlock title="Observation Tags" items={learnerObservations.flatMap(o => o.nlpTags).slice(0, 8)} />
+            </div>
+          </section>
+
+          {(reportType === "Learner Summary" || reportType === "Progress") && (
+            <section>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Assessment Summary</h3>
+              {latestAssessment ? (
+                <div className="mt-3">
+                  <AssessmentSummaryPanel
+                    summary={latestAssessment.summary}
+                    totalScore={latestAssessment.totalScore}
+                    percentage={latestAssessment.percentage}
+                    lowestDomains={latestAssessment.lowestDomains}
+                  />
                 </div>
-                <CardTitle className="text-lg text-slate-900 dark:text-slate-50">{report.title}</CardTitle>
-                <CardDescription>{report.desc}</CardDescription>
-             </CardHeader>
-             <CardContent className="pt-4 flex gap-3">
-                <Button variant="outline" className="flex-1 text-sm h-9" onClick={() => window.print()}>
-                  <Printer size={14} className="mr-2" /> Print
-                </Button>
-                <Button 
-                  className="flex-1 text-sm h-9" 
-                  onClick={(e) => {
-                    const btn = e.currentTarget;
-                    if(btn) {
-                       const og = btn.innerHTML;
-                       btn.innerHTML = "Downloading...";
-                       setTimeout(() => { btn.innerHTML = "Exported ✓"; setTimeout(() => btn.innerHTML = og, 2000)}, 1000);
-                    }
-                  }}
-                >
-                  <FileDown size={14} className="mr-2" /> Export PDF
-                </Button>
-             </CardContent>
-          </Card>
-        ))}
-      </div>
+              ) : <p className="mt-2 text-sm text-slate-500">No assessment records yet.</p>}
+            </section>
+          )}
+
+          {(reportType === "Learner Summary" || reportType === "Recommendation") && (
+            <section>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Explainable Recommendation</h3>
+              {latestRecommendation ? (
+                <div className="mt-3 space-y-3 rounded-lg border border-slate-200 p-4 text-sm dark:border-slate-800">
+                  <p><span className="font-medium">Review status:</span> {latestRecommendation.teacherReviewStatus}</p>
+                  <ListBlock title="Recommended Interventions" items={latestRecommendation.recommendedStrategies} />
+                  <ListBlock title="Evidence" items={latestRecommendation.evidence} />
+                </div>
+              ) : <p className="mt-2 text-sm text-slate-500">No recommendation generated yet.</p>}
+            </section>
+          )}
+
+          {(reportType === "Learner Summary" || reportType === "Intervention History") && (
+            <section>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Intervention History</h3>
+              {learner.interventionHistory.length > 0 ? (
+                <div className="mt-3 space-y-3">
+                  {learner.interventionHistory.map(item => (
+                    <div key={item.id} className="rounded-lg border border-slate-200 p-4 text-sm dark:border-slate-800">
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{item.strategy}</p>
+                      <p className="mt-1 text-slate-500 dark:text-slate-400">{format(new Date(item.date), "MMM d, yyyy")}</p>
+                      <p className="mt-2 text-slate-700 dark:text-slate-300">{item.outcome}</p>
+                      <p className="mt-1 text-slate-600 dark:text-slate-400">Teacher reflection: {item.teacherReflection}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="mt-2 text-sm text-slate-500">No intervention history recorded yet.</p>}
+            </section>
+          )}
+
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-100">
+            This report is an educational decision-support summary. It does not diagnose disabilities, prescribe clinical action, or replace teacher judgment.
+          </section>
+        </CardContent>
+      </Card>
     </div>
   )
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+      <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 font-semibold text-slate-900 dark:text-slate-50">{value}</p>
+    </div>
+  )
+}
+
+function ListBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{title}</p>
+      {items.length > 0 ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-300">
+          {items.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">None recorded.</p>
+      )}
+    </div>
+  )
+}
+
+type PdfReportInput = {
+  reportType: ReportType
+  learner: NonNullable<ReturnType<typeof useData>["learners"][number]>
+  learnerAssessments: ReturnType<typeof useData>["assessments"]
+  learnerObservations: ReturnType<typeof useData>["observations"]
+  learnerRecommendations: ReturnType<typeof useData>["recommendations"]
+  latestAssessment: ReturnType<typeof useData>["assessments"][number] | undefined
+  latestRecommendation: ReturnType<typeof useData>["recommendations"][number] | undefined
+}
+
+type PdfReport = {
+  title: string
+  filename: string
+  generatedAt: string
+  learnerCode: string
+  summaryItems: Array<{ label: string; value: string }>
+  advisory: string
+  sections: Array<{
+    title: string
+    paragraphs?: string[]
+    rows?: Array<{ label: string; value: string }>
+    bullets?: string[]
+  }>
+}
+
+function buildPdfReport(input: PdfReportInput) {
+  const {
+    reportType,
+    learner,
+    learnerAssessments,
+    learnerObservations,
+    learnerRecommendations,
+    latestAssessment,
+    latestRecommendation,
+  } = input
+  const generatedAt = format(new Date(), "MMM d, yyyy h:mm a")
+  const filename = `ReadAssist-SNED_${learner.code}_${reportType.replace(/\s+/g, "-")}_${format(new Date(), "yyyy-MM-dd")}.pdf`
+  const title = `ReadAssist-SNED ${reportType} Report`
+  const sections: PdfReport["sections"] = [
+    {
+      title: "Educational Profile",
+      rows: [
+        { label: "Reading Concerns", value: formatList(learner.readingConcerns) },
+        { label: "Accommodations", value: formatList(learner.accommodations) },
+        { label: "IEP-Aligned Goals", value: formatList(learner.iepGoals) },
+        { label: "Observation Tags", value: formatList(unique(learnerObservations.flatMap(o => o.nlpTags)).slice(0, 10)) },
+      ],
+    },
+  ]
+
+  if (reportType === "Learner Summary" || reportType === "Progress") {
+    sections.push({
+      title: "Assessment Summary",
+      rows: latestAssessment ? [
+        { label: "Latest Adapted Score", value: `${latestAssessment.totalScore}/50 (${latestAssessment.percentage}%)` },
+        { label: "Assessment Summary", value: latestAssessment.summary },
+        { label: "Priority Domains", value: formatList(latestAssessment.lowestDomains) },
+        { label: "Assessment Sessions on Record", value: String(learnerAssessments.length) },
+      ] : [
+        { label: "Assessment Status", value: "No assessment records yet." },
+      ],
+    })
+  }
+
+  if (reportType === "Learner Summary" || reportType === "Recommendation") {
+    const recommendationSection: PdfReport["sections"][number] = {
+      title: "Explainable Recommendation",
+      rows: latestRecommendation ? [
+        { label: "Teacher Review Status", value: latestRecommendation.teacherReviewStatus },
+        { label: "System Confidence", value: `${latestRecommendation.confidence}%` },
+        { label: "Recommended Interventions", value: formatList(latestRecommendation.recommendedStrategies) },
+      ] : [
+        { label: "Recommendation Status", value: "No recommendation generated yet." },
+      ],
+    }
+    if (latestRecommendation) {
+      sections.push(recommendationSection)
+      sections.push({ title: "Contributing Factors", bullets: latestRecommendation.contributingFactors })
+      sections.push({ title: "Evidence Used", bullets: latestRecommendation.evidence })
+      sections.push({ title: "Reasoning Process", bullets: latestRecommendation.reasoningSteps })
+    } else {
+      sections.push(recommendationSection)
+    }
+  }
+
+  if (reportType === "Learner Summary" || reportType === "Intervention History") {
+    sections.push({
+      title: "Intervention History",
+      bullets: learner.interventionHistory.length > 0
+        ? learner.interventionHistory.map(item => `${format(new Date(item.date), "MMM d, yyyy")} - ${item.strategy}. Outcome: ${item.outcome} Teacher reflection: ${item.teacherReflection}`)
+        : ["No intervention history recorded yet."],
+    })
+  }
+
+  sections.push({
+    title: "Record Counts",
+    rows: [
+      { label: "Assessments", value: String(learnerAssessments.length) },
+      { label: "Observations", value: String(learnerObservations.length) },
+      { label: "Recommendations", value: String(learnerRecommendations.length) },
+    ],
+    paragraphs: ["Prepared for teacher review and school-based reading intervention documentation."],
+  })
+
+  return {
+    title,
+    filename,
+    generatedAt,
+    learnerCode: learner.code,
+    summaryItems: [
+      { label: "Learner Code", value: learner.code },
+      { label: "Grade Level", value: learner.gradeLevel },
+      { label: "Support Need", value: latestRecommendation?.classifiedSupportLevel || learner.supportNeeds },
+      { label: "Progress Status", value: latestRecommendation?.progressStatus || learner.status },
+    ],
+    advisory: "This report is an educational decision-support summary. It does not diagnose disabilities, prescribe clinical action, or replace teacher judgment.",
+    sections,
+  }
+}
+
+function createProfessionalPdf(report: PdfReport) {
+  const pageWidth = 612
+  const pageHeight = 792
+  const margin = 42
+  const contentWidth = pageWidth - margin * 2
+  const bottom = 58
+  const pages: string[][] = [[]]
+  let y = 700
+
+  const current = () => pages[pages.length - 1]
+  const add = (command: string) => current().push(command)
+  const newPage = () => {
+    pages.push([])
+    y = 700
+    drawPageHeader()
+  }
+  const ensureSpace = (height: number) => {
+    if (y - height < bottom) newPage()
+  }
+  const text = (value: string, x: number, baseline: number, size = 10, bold = false, color = "#0f172a") => {
+    add(`BT ${pdfColor(color)} rg /${bold ? "F2" : "F1"} ${size} Tf ${x} ${baseline} Td (${escapePdfText(cleanPdfText(value))}) Tj ET`)
+  }
+  const rect = (x: number, ry: number, w: number, h: number, fill = "#ffffff", stroke?: string) => {
+    add(`q ${pdfColor(fill)} rg ${stroke ? `${pdfColor(stroke)} RG 1 w` : ""} ${x} ${ry} ${w} ${h} re ${stroke ? "B" : "f"} Q`)
+  }
+  const line = (x1: number, y1: number, x2: number, y2: number, color = "#e2e8f0") => {
+    add(`q ${pdfColor(color)} RG 1 w ${x1} ${y1} m ${x2} ${y2} l S Q`)
+  }
+  const circle = (cx: number, cy: number, r: number, fill = "#2563eb") => {
+    const c = 0.5522847498 * r
+    add(`q ${pdfColor(fill)} rg ${cx + r} ${cy} m ${cx + r} ${cy + c} ${cx + c} ${cy + r} ${cx} ${cy + r} c ${cx - c} ${cy + r} ${cx - r} ${cy + c} ${cx - r} ${cy} c ${cx - r} ${cy - c} ${cx - c} ${cy - r} ${cx} ${cy - r} c ${cx + c} ${cy - r} ${cx + r} ${cy - c} ${cx + r} ${cy} c f Q`)
+  }
+  const writeWrapped = (value: string, x: number, width: number, size = 10, bold = false, color = "#334155", leading = 13) => {
+    const wrapped = wrapLine(cleanPdfText(value), Math.max(20, Math.floor(width / (size * 0.52))))
+    ensureSpace(wrapped.length * leading + 4)
+    wrapped.forEach(part => {
+      text(part, x, y, size, bold, color)
+      y -= leading
+    })
+  }
+  const drawWrappedAt = (value: string, x: number, baseline: number, width: number, size = 10, bold = false, color = "#334155", leading = 12) => {
+    const wrapped = wrapLine(cleanPdfText(value), Math.max(20, Math.floor(width / (size * 0.52))))
+    wrapped.slice(0, 2).forEach((part, index) => {
+      text(part, x, baseline - index * leading, size, bold, color)
+    })
+  }
+  const drawTableRow = (label: string, value: string) => {
+    const labelWidth = 148
+    const valueX = margin + labelWidth + 16
+    const valueWidth = contentWidth - labelWidth - 28
+    const valueLines = wrapLine(cleanPdfText(value), Math.max(24, Math.floor(valueWidth / (9 * 0.52))))
+    const rowHeight = Math.max(34, valueLines.length * 12 + 18)
+    ensureSpace(rowHeight + 3)
+    const rowTop = y
+    const rowBottom = y - rowHeight
+    rect(margin, rowBottom, contentWidth, rowHeight, "#ffffff", "#dbe3ef")
+    line(margin + labelWidth, rowBottom, margin + labelWidth, rowTop, "#e2e8f0")
+    text(label, margin + 10, rowBottom + rowHeight / 2 - 3, 8, true, "#334155")
+    valueLines.forEach((part, index) => {
+      text(part, valueX, rowBottom + rowHeight - 16 - index * 12, 9, false, "#0f172a")
+    })
+    y -= rowHeight + 6
+  }
+  const sectionTitle = (title: string) => {
+    ensureSpace(34)
+    rect(margin, y - 19, contentWidth, 23, "#eff6ff")
+    rect(margin, y - 19, 4, 23, "#2563eb")
+    text(title, margin + 12, y - 3, 11, true, "#1e3a8a")
+    y -= 34
+  }
+  const drawPageHeader = () => {
+    rect(0, 742, pageWidth, 50, "#1d4ed8")
+    text("ReadAssist-SNED", margin, 770, 15, true, "#ffffff")
+    text("IEP-Aligned Reading Comprehension Decision-Support Report", margin, 754, 9, false, "#dbeafe")
+  }
+
+  drawPageHeader()
+  text(report.title, margin, y, 18, true, "#0f172a")
+  text(`Generated ${report.generatedAt}`, margin, y - 18, 10, false, "#475569")
+  text(`Learner ${report.learnerCode}`, pageWidth - margin - 118, y - 3, 10, true, "#1d4ed8")
+  y -= 52
+
+  const cardGap = 10
+  const cardWidth = (contentWidth - cardGap) / 2
+  const cardRows = Math.ceil(report.summaryItems.length / 2)
+  ensureSpace(cardRows * 64 + 18)
+  report.summaryItems.forEach((item, index) => {
+    const x = margin + (index % 2) * (cardWidth + cardGap)
+    const cardY = y - Math.floor(index / 2) * 64
+    rect(x, cardY - 48, cardWidth, 52, "#f8fafc", "#cbd5e1")
+    text(item.label.toUpperCase(), x + 12, cardY - 15, 7, true, "#64748b")
+    drawWrappedAt(item.value, x + 12, cardY - 32, cardWidth - 24, 11, true, "#0f172a", 12)
+  })
+  y -= cardRows * 64 + 8
+
+  ensureSpace(58)
+  rect(margin, y - 45, contentWidth, 48, "#fffbeb", "#f59e0b")
+  text("Teacher Review Advisory", margin + 14, y - 14, 10, true, "#92400e")
+  y -= 28
+  writeWrapped(report.advisory, margin + 14, contentWidth - 28, 9, false, "#78350f", 12)
+  y -= 16
+
+  report.sections.forEach(section => {
+    sectionTitle(section.title)
+    section.paragraphs?.forEach(paragraph => {
+      writeWrapped(paragraph, margin, contentWidth, 10, false, "#334155")
+      y -= 5
+    })
+    section.rows?.forEach(row => {
+      drawTableRow(row.label, row.value)
+    })
+    section.bullets?.forEach(item => {
+      const wrapped = wrapLine(cleanPdfText(item), 86)
+      ensureSpace(wrapped.length * 12 + 6)
+      circle(margin + 7, y - 3, 2.2, "#2563eb")
+      wrapped.forEach((part, index) => {
+        text(part, margin + 18, y - index * 12, 9, false, "#334155")
+      })
+      y -= wrapped.length * 12 + 6
+    })
+    y -= 8
+  })
+
+  pages.forEach((commands, index) => {
+    commands.push(`q ${pdfColor("#cbd5e1")} RG 1 w ${margin} 44 m ${pageWidth - margin} 44 l S Q`)
+    commands.push(`BT ${pdfColor("#64748b")} rg /F1 8 Tf ${margin} 28 Td (ReadAssist-SNED - Teacher-reviewed decision-support document) Tj ET`)
+    commands.push(`BT ${pdfColor("#64748b")} rg /F1 8 Tf ${pageWidth - margin - 58} 28 Td (Page ${index + 1} of ${pages.length}) Tj ET`)
+  })
+
+  const objects: string[] = []
+  const pageObjectNumbers: number[] = []
+  objects.push("<< /Type /Catalog /Pages 2 0 R >>")
+  objects.push("PAGES_PLACEHOLDER")
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
+
+  pages.forEach((commands) => {
+    const contentObjectNumber = objects.length + 1
+    const pageObjectNumber = contentObjectNumber + 1
+    pageObjectNumbers.push(pageObjectNumber)
+    const stream = commands.join("\n")
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`)
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`)
+  })
+
+  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map(number => `${number} 0 R`).join(" ")}] /Count ${pageObjectNumbers.length} >>`
+
+  let pdf = "%PDF-1.4\n"
+  const offsets: number[] = [0]
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length)
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+  })
+  const xrefOffset = pdf.length
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  offsets.slice(1).forEach(offset => {
+    pdf += `${offset.toString().padStart(10, "0")} 00000 n \n`
+  })
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+
+  return new Blob([pdf], { type: "application/pdf" })
+}
+
+function pdfColor(hex: string) {
+  const clean = hex.replace("#", "")
+  const r = parseInt(clean.slice(0, 2), 16) / 255
+  const g = parseInt(clean.slice(2, 4), 16) / 255
+  const b = parseInt(clean.slice(4, 6), 16) / 255
+  return `${formatPdfNumber(r)} ${formatPdfNumber(g)} ${formatPdfNumber(b)}`
+}
+
+function formatPdfNumber(value: number) {
+  return value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")
+}
+
+function wrapLine(line: string, maxLength: number) {
+  if (line.length <= maxLength) return [line]
+  const words = line.split(" ")
+  const lines: string[] = []
+  let current = ""
+  words.forEach(word => {
+    const next = current ? `${current} ${word}` : word
+    if (next.length > maxLength) {
+      if (current) lines.push(current)
+      current = word
+    } else {
+      current = next
+    }
+  })
+  if (current) lines.push(current)
+  return lines
+}
+
+function escapePdfText(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)")
+}
+
+function cleanPdfText(value: string) {
+  return value.replace(/[^\x20-\x7E]/g, "-")
+}
+
+function formatList(items: string[]) {
+  return items.length > 0 ? items.join("; ") : "None recorded"
+}
+
+function unique(items: string[]) {
+  return Array.from(new Set(items))
 }
